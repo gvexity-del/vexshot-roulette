@@ -1,0 +1,1455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f4f4f6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121216" media="(prefers-color-scheme: dark)">
+<meta name="description" content="Vexshot Roulette: a two-player shell game of luck, nerve and items.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="64x64" href="favicon-64.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Vexshot">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Vexshot Roulette</title>
+<style>
+  :root {
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    --bg: #f4f4f6; --card: #ffffff; --text: #1a1a1f; --muted: #6b6b76;
+    --border: #d8d8e0; --accent: #c0392b; --accent-text: #ffffff; --live: #c0392b; --blank: #2e6fbd;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121216; --card: #1c1c22; --text: #ececf1; --muted: #9a9aa6;
+      --border: #33333c; --accent: #e04b3a; --accent-text: #ffffff; --live: #e04b3a; --blank: #5b9be0;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121216; --card: #1c1c22; --text: #ececf1; --muted: #9a9aa6;
+    --border: #33333c; --accent: #e04b3a; --accent-text: #ffffff; --live: #e04b3a; --blank: #5b9be0;
+  }
+  html { height: 100%; scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; height: 100%; overflow: hidden;
+    background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex; justify-content: center;
+  }
+  .hidden { display: none !important; }
+  .live { color: var(--live); } .blank { color: var(--blank); }
+
+  /* ---------- layout: everything lives inside one screen ---------- */
+  .app {
+    width: 100%; max-width: 560px; height: 100%; min-height: 0;
+    padding: 8px 12px; display: flex; flex-direction: column;
+  }
+  #game { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
+  #setup, #menu, #settingsPage { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; }
+
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 8px 10px;
+  }
+  button {
+    font-size: .95rem; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--card); color: var(--text); cursor: pointer; font-weight: 600; font-family: inherit;
+  }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+
+  /* ---------- setup ---------- */
+  h1 { margin: 0 0 4px; font-size: 1.6rem; letter-spacing: .5px; }
+  .sub { color: var(--muted); margin: 0 0 16px; font-size: .9rem; }
+  .form { padding: 16px; }
+  label { display: block; font-size: .85rem; color: var(--muted); margin: 10px 0 4px; }
+  label:first-child { margin-top: 0; }
+  input {
+    width: 100%; padding: 10px; font-size: 1rem; border-radius: 8px; font-family: inherit;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text);
+  }
+  .setup-btns { display: flex; gap: 10px; margin-top: 16px; }
+  .setup-btns button { flex: 1; }
+  .dbg-label.first { margin-top: 0; }
+
+  /* ---------- main menu ---------- */
+  .logo { width: 100%; max-width: 380px; height: auto; display: block; margin: 0 auto; }
+  .menu-sub { text-align: center; margin: 4px 0 0; }
+  .menu-btns { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 320px; margin: 22px auto 0; }
+  button.big { padding: 14px; font-size: 1.05rem; }
+
+  /* ---------- top bar ---------- */
+  .topbar { display: flex; align-items: center; gap: 8px; min-height: 28px; }
+  .round {
+    padding: 3px 12px; background: var(--card); border: 1px solid var(--border); border-radius: 999px;
+    font-size: .7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--muted);
+    white-space: nowrap;
+  }
+  .round b { font-size: 1.05rem; letter-spacing: 0; margin-left: 5px; color: var(--accent); }
+  #turnLabel {
+    flex: 1; min-width: 0; text-align: center; font-weight: 700; font-size: .95rem;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .mini { padding: 3px 10px; font-size: .7rem; }
+
+  /* ---------- shells ---------- */
+  .shell-row { --shell-h: clamp(24px, 5vh, 52px); display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .shell-group .icons { display: flex; gap: 4px; justify-content: center; align-items: flex-end; min-height: var(--shell-h); }
+  .shell-group svg { height: var(--shell-h); width: calc(var(--shell-h) / 2); }
+
+  /* ---------- players ---------- */
+  .players { flex: 1; min-height: 0; display: flex; gap: 8px; }
+  .pcol { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
+  .player {
+    flex: 1; min-height: 0; display: flex; flex-direction: column;
+    background: var(--card); border: 2px solid var(--border); border-radius: 12px; padding: 6px; text-align: center;
+  }
+  .player.active { border-color: var(--accent); }
+  .pname { font-weight: 700; font-size: .95rem; line-height: 1.2; word-break: break-word; }
+  /* heart size shrinks as the starting hearts go up, so they always fit in one row */
+  .hearts { display: flex; flex-wrap: nowrap; gap: 2px; justify-content: center; align-items: center; min-height: 22px; margin-top: 4px; }
+  .hearts svg { flex: none; width: min(34px, calc((100% - (var(--n, 3) - 1) * 2px) / var(--n, 3))); height: auto; aspect-ratio: 1; }
+  .heart-num { display: inline-flex; align-items: center; gap: 6px; font-size: 1.4rem; font-weight: 800; }
+  .heart-num svg { width: 24px; height: 24px; }
+  /* status effect icons under the hearts */
+  .status { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; min-height: 20px; margin-top: 4px; }
+  .st { position: relative; width: 20px; height: 20px; }
+  .st svg { width: 100%; height: 100%; }
+  .st i {
+    position: absolute; right: -5px; bottom: -4px; font-style: normal; font-size: .6rem; font-weight: 800; line-height: 1.2;
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 0 3px;
+  }
+
+  /* inventory: square slots, one per item the player can hold (the grid size is set in JS), sized to the space available */
+  .inv {
+    flex: 1; min-height: 0; margin-top: 8px; display: grid; gap: 4px;
+    grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr));
+  }
+  .slot {
+    height: 100%; width: auto; max-width: 100%; aspect-ratio: 1; justify-self: center; min-width: 0; padding: 0;
+    border-radius: 8px; display: flex; align-items: center; justify-content: center;
+  }
+  .slot svg { width: 72%; height: 72%; }
+  .slot.empty { border: 1.5px dashed var(--border); background: transparent; }
+  .slot:disabled { opacity: .55; cursor: default; }
+  .player.active .slot:not(:disabled):not(.empty) { border-color: var(--accent); }
+  .pbtns { display: flex; flex-direction: column; gap: 5px; }
+  .pbtns button { width: 100%; padding: 7px 6px; font-size: .8rem; }
+  .pbtns button:disabled { opacity: .35; filter: grayscale(1); }
+
+  /* ---------- message ---------- */
+  .announce {
+    height: clamp(84px, 17vh, 150px); overflow: hidden; text-align: center;
+    display: flex; flex-direction: column; justify-content: center; gap: 4px;
+  }
+  #bigMsg { font-size: clamp(1.05rem, 3.4vh, 1.7rem); font-weight: 800; line-height: 1.2; word-break: break-word; }
+  #bigMsg.hit { color: var(--live); }
+  #bigMsg.miss { color: var(--blank); }
+  #subMsgs { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 12px; font-size: .8rem; line-height: 1.25; color: var(--muted); }
+  #subMsgs .hit { color: var(--live); font-weight: 700; }
+  #peekLabel { font-size: .8rem; font-weight: 700; color: var(--accent); min-height: 1.1em; }
+  @keyframes pop { from { transform: scale(.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  #bigMsg.pop { animation: pop .2s ease-out; }
+
+  /* ---------- bottom buttons ---------- */
+  .bottom-btns { display: flex; gap: 8px; }
+  .bottom-btns button { flex: 1; padding: 8px 6px; font-size: .85rem; }
+  .bottom-btns #helpBtn { flex: 0 0 56px; }
+
+  /* ---------- tutorial ---------- */
+  #tutorial {
+    position: fixed; inset: 0; z-index: 50; background: rgba(0, 0, 0, .55);
+    display: flex; align-items: center; justify-content: center;
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+  .tut-card {
+    width: 100%; max-width: 480px; max-height: 100%; background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 10px; min-height: 0;
+  }
+  .tut-head { display: flex; justify-content: space-between; align-items: center; }
+  .tut-step { font-size: .75rem; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+  .tut-title { font-size: 1.25rem; font-weight: 800; }
+  .tut-visual { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; min-height: 64px; background: var(--bg); border-radius: 10px; padding: 8px; }
+  .tut-visual .sv { display: inline-flex; gap: 3px; }
+  .tut-visual .sv svg { width: 26px; height: 52px; }
+  .tut-visual .hv { display: inline-flex; gap: 3px; }
+  .tut-visual .hv svg { width: 32px; height: 32px; }
+  .tut-visual .emo { font-size: 1.6rem; }
+  .tut-visual .arrow { font-size: 1.4rem; color: var(--muted); }
+  .tut-visual .iv { display: inline-flex; gap: 8px; }
+  .tut-visual .iv svg { width: 36px; height: 36px; }
+  .fake { padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); font-weight: 700; font-size: .85rem; background: var(--card); }
+  .fake.p { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  .tut-body { overflow-y: auto; min-height: 0; }
+  #tutText { font-size: .95rem; line-height: 1.5; margin: 0; }
+  #tutList { display: flex; flex-direction: column; gap: 6px; }
+  #tutList:empty { display: none; }
+  .tut-item { display: flex; gap: 10px; align-items: center; font-size: .9rem; }
+  .tut-item .ic { width: 32px; flex: none; display: flex; }
+  .tut-item .ic svg { width: 32px; height: 32px; }
+  .tut-item b { display: block; }
+  .tut-item span.d { color: var(--muted); font-size: .85rem; }
+  .tut-dots { display: flex; justify-content: center; gap: 6px; }
+  .tut-dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
+  .tut-dots i.on { background: var(--accent); }
+  .tut-nav { display: flex; gap: 10px; }
+  .tut-nav button { flex: 1; }
+
+  /* ---------- debug drawer (slides in from the right) ---------- */
+  #debugPanel {
+    position: fixed; top: 0; right: 0; bottom: 0; z-index: 40; width: min(380px, 92vw);
+    background: var(--card); border-left: 1px solid var(--border);
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 14px calc(12px + env(safe-area-inset-bottom, 0px));
+    overflow-y: auto; transform: translateX(100%); visibility: hidden;
+    transition: transform .25s ease, visibility 0s linear .25s;
+  }
+  #debugPanel.open {
+    transform: translateX(0); visibility: visible; transition: transform .25s ease;
+    box-shadow: -8px 0 24px rgba(0, 0, 0, .25);
+  }
+  .dbg-head { display: flex; justify-content: space-between; align-items: center; }
+  .dbg-title { font-weight: 800; letter-spacing: 2px; color: var(--accent); }
+  .dbg-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 10px 0 4px; }
+  .dbg-tab { padding: 5px 10px; font-size: .78rem; }
+  .dbg-tab.on { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  .dbg-label { font-size: .7rem; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin: 12px 0 6px; }
+  .dbg-row { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+  .dbg-row button { padding: 5px 9px; font-size: .78rem; }
+  .dbg-row .dbg-chip { display: flex; align-items: center; gap: 5px; padding: 4px 8px; font-size: .75rem; }
+  .dbg-chip svg { width: 20px; height: 20px; }
+  .dbg-players { display: flex; flex-direction: column; gap: 8px; }
+  .dbg-player { border: 1px solid var(--border); border-radius: 10px; padding: 8px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .dbg-player.turn { border-color: var(--accent); }
+  .dbg-pname { font-weight: 700; font-size: .85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dbg-num { width: 64px; padding: 4px 6px; font-size: .85rem; text-align: center; }
+  .dbg-rule { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: .85rem; padding: 4px 0; }
+  .dbg-rule button { padding: 4px 12px; font-size: .78rem; min-width: 64px; }
+  .dbg-gap { margin-top: 10px; }
+  .dbg-chamber { display: flex; flex-wrap: wrap; gap: 4px; min-height: 26px; margin-bottom: 8px; }
+  .dbg-dot {
+    width: 26px; height: 26px; border-radius: 6px; color: #fff; font-size: .7rem; font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .dbg-dot.dbg-live { background: var(--live); }
+  .dbg-dot.dbg-blank { background: var(--blank); }
+
+  /* ---------- settings drawer (slides in from the left) ---------- */
+  #settingsPanel {
+    position: fixed; top: 0; left: 0; bottom: 0; z-index: 45; width: min(340px, 92vw);
+    background: var(--card); border-right: 1px solid var(--border);
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 14px calc(12px + env(safe-area-inset-bottom, 0px));
+    overflow-y: auto; transform: translateX(-100%); visibility: hidden;
+    transition: transform .25s ease, visibility 0s linear .25s;
+  }
+  #settingsPanel.open {
+    transform: translateX(0); visibility: visible; transition: transform .25s ease;
+    box-shadow: 8px 0 24px rgba(0, 0, 0, .25);
+  }
+  .set-title { font-weight: 800; letter-spacing: 2px; }
+  .set-note { margin: 0 0 6px; font-size: .78rem; color: var(--muted); line-height: 1.35; }
+  .dbg-row .theme-btn.on { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+
+  /* ---------- pickpocket picker ---------- */
+  #pickModal {
+    position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, .55);
+    display: flex; align-items: center; justify-content: center;
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+  .pick-card {
+    width: 100%; max-width: 380px; max-height: 100%; overflow-y: auto; background: var(--card);
+    border: 1px solid var(--border); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 10px;
+  }
+  .pick-title { font-size: 1.2rem; font-weight: 800; }
+  .pick-sub { margin: 0; font-size: .85rem; color: var(--muted); }
+  .pick-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .pick-item { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px; font-size: .72rem; line-height: 1.1; }
+  .pick-item svg { width: 36px; height: 36px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- MAIN MENU -->
+  <div id="menu">
+    <svg class="logo" viewBox="0 0 380 150" role="img" aria-label="Vexshot Roulette">
+      <title>Vexshot Roulette</title>
+      <g transform="translate(66 75)">
+        <g>
+          <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="18s" repeatCount="indefinite"/>
+          <circle r="44" fill="var(--card)" stroke="var(--text)" stroke-width="5"/>
+          <circle cx="26" cy="0" r="9" fill="var(--live)"/>
+          <circle cx="13" cy="22.5" r="9" fill="var(--blank)"/>
+          <circle cx="-13" cy="22.5" r="9" fill="var(--live)"/>
+          <circle cx="-26" cy="0" r="9" fill="var(--blank)"/>
+          <circle cx="-13" cy="-22.5" r="9" fill="none" stroke="var(--border)" stroke-width="2" stroke-dasharray="3 3"/>
+          <circle cx="13" cy="-22.5" r="9" fill="var(--blank)"/>
+          <circle cx="23" cy="-3" r="2.5" fill="#fff" opacity=".4"/>
+          <circle cx="-16" cy="19.5" r="2.5" fill="#fff" opacity=".4"/>
+        </g>
+        <circle r="7" fill="var(--text)"/>
+        <g stroke="var(--accent)" stroke-width="4" stroke-linecap="round">
+          <line x1="0" y1="-62" x2="0" y2="-50"/><line x1="0" y1="62" x2="0" y2="50"/>
+          <line x1="-62" y1="0" x2="-50" y2="0"/><line x1="62" y1="0" x2="50" y2="0"/>
+        </g>
+      </g>
+      <text x="140" y="72" font-size="46" font-weight="900" fill="var(--text)" textLength="220" lengthAdjust="spacingAndGlyphs"
+            style="font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif">VEXSHOT</text>
+      <rect x="140" y="82" width="220" height="4" rx="2" fill="var(--accent)"/>
+      <text x="140" y="114" font-size="24" font-weight="800" fill="var(--accent)" textLength="220" lengthAdjust="spacing"
+            style="font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif">ROULETTE</text>
+    </svg>
+    <p class="sub menu-sub">Two players. One shotgun. Pure nerve.</p>
+    <div class="menu-btns">
+      <button id="menuPlay" class="primary big">Play</button>
+      <button id="menuHow" class="big">How to play</button>
+      <button id="menuSettings" class="big">Settings</button>
+    </div>
+  </div>
+
+  <!-- NAME PAGE -->
+  <div id="setup" class="hidden">
+    <h1>New game</h1>
+    <p class="sub">Enter your names and pick the hearts.</p>
+    <div class="card form">
+      <label for="p1name">Player 1 name</label>
+      <input id="p1name" value="Player 1" maxlength="20">
+      <label for="p2name">Player 2 name</label>
+      <input id="p2name" value="Player 2" maxlength="20">
+      <label for="heartsInput">Hearts per player</label>
+      <input id="heartsInput" type="number" min="1" value="5">
+      <p class="set-note" style="margin-top:6px">Up to 10 hearts. Turn on debug mode in Settings to go higher.</p>
+      <div class="setup-btns">
+        <button id="setupBack">Back</button>
+        <button id="startBtn" class="primary">Start game</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS PAGE -->
+  <div id="settingsPage" class="hidden">
+    <h1>Settings</h1>
+    <div class="card form">
+      <div class="dbg-label first">Appearance</div>
+      <div class="dbg-row" id="pgTheme"></div>
+      <div class="dbg-label">Rules</div>
+      <div id="pgRules"></div>
+      <div class="dbg-label">Developer</div>
+      <div class="dbg-rule"><span>Debug mode</span><button id="pgDebug"></button></div>
+      <p class="set-note">Adds a cheat menu to the game screen: set hearts, give items, change status effects and more.</p>
+      <div class="setup-btns">
+        <button id="pageBack" class="primary">Back</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GAME -->
+  <div id="game" class="hidden">
+    <div class="topbar">
+      <div class="round" id="roundLabel"></div>
+      <div id="turnLabel"></div>
+      <button id="dbgToggle" class="mini hidden">Debug</button>
+    </div>
+
+    <div class="card"><div class="shell-row" id="shellRow"></div></div>
+
+    <div class="players">
+      <div class="pcol">
+        <div class="player" id="card1">
+          <div class="pname" id="n1"></div>
+          <div class="hearts" id="h1"></div>
+          <div class="status" id="st1"></div>
+          <div class="inv" id="inv1"></div>
+        </div>
+        <div class="pbtns">
+          <button id="self1">Shoot self</button>
+          <button id="enemy1" class="primary">Shoot enemy</button>
+        </div>
+      </div>
+      <div class="pcol">
+        <div class="player" id="card2">
+          <div class="pname" id="n2"></div>
+          <div class="hearts" id="h2"></div>
+          <div class="status" id="st2"></div>
+          <div class="inv" id="inv2"></div>
+        </div>
+        <div class="pbtns">
+          <button id="self2">Shoot self</button>
+          <button id="enemy2" class="primary">Shoot enemy</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card announce">
+      <div id="bigMsg"></div>
+      <div id="subMsgs"></div>
+      <div id="peekLabel"></div>
+    </div>
+
+    <div class="bottom-btns">
+      <button id="restartBtn">Restart</button>
+      <button id="settingsBtn">Settings</button>
+      <button id="helpBtn" aria-label="How to play">?</button>
+    </div>
+  </div>
+</div>
+
+<!-- TUTORIAL -->
+<div id="tutorial" class="hidden">
+  <div class="tut-card">
+    <div class="tut-head">
+      <span class="tut-step" id="tutStepLabel"></span>
+      <button id="tutClose" class="mini">Close</button>
+    </div>
+    <div class="tut-title" id="tutTitle"></div>
+    <div class="tut-visual" id="tutVisual"></div>
+    <div class="tut-body">
+      <p id="tutText"></p>
+      <div id="tutList"></div>
+    </div>
+    <div class="tut-dots" id="tutDots"></div>
+    <div class="tut-nav">
+      <button id="tutBack">Back</button>
+      <button id="tutNext" class="primary">Next</button>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div id="settingsPanel">
+  <div class="dbg-head">
+    <span class="set-title">SETTINGS</span>
+    <button id="setClose" class="mini">Close</button>
+  </div>
+  <div class="dbg-label">Appearance</div>
+  <div class="dbg-row" id="setTheme"></div>
+  <div class="dbg-label">Rules</div>
+  <p class="set-note">Tweak how the game plays. Shell and item changes apply from the next round.</p>
+  <div id="setRules"></div>
+  <div class="dbg-label">Help</div>
+  <div class="dbg-row"><button id="setHelp">How to play</button></div>
+</div>
+
+<!-- PICKPOCKET -->
+<div id="pickModal" class="hidden">
+  <div class="pick-card">
+    <div class="pick-title" id="pickTitle"></div>
+    <p class="pick-sub">Choose an item to steal.</p>
+    <div class="pick-grid" id="pickGrid"></div>
+    <button id="pickCancel">Cancel</button>
+  </div>
+</div>
+
+<!-- DEBUG -->
+<div id="debugPanel" class="hidden">
+  <div class="dbg-head">
+    <span class="dbg-title">DEBUG MODE</span>
+    <button id="dbgClose" class="mini">Close</button>
+  </div>
+  <div class="dbg-tabs" id="dbgTabs"></div>
+  <div id="dbgBody"></div>
+</div>
+
+<script>
+  // ---------- settings ----------
+  let MAX_ROUNDS = 50;
+  let MIN_SHELLS = 2, MAX_SHELLS = 8;   // shells loaded per round
+  const SHELL_STATES = ['live', 'blank'];
+  // Shooting yourself with a blank gives you another turn.
+  // Set to false if you want the turn to pass instead.
+  let SELF_BLANK_EXTRA_TURN = true;
+
+  // Items: each player gets ITEMS_PER_ROUND random items after every round.
+  let ITEMS_PER_ROUND = 2;
+  let MAX_ITEMS = 12;
+  const ITEMS = {
+    glass:  { icon: '\uD83D\uDD0D', name: 'Magnifier',  desc: 'See the current shell' },
+    medkit: { icon: '\uD83E\uDE79', name: 'Medkit',     desc: 'Restore 1 heart' },
+    saw:    { icon: '\uD83E\uDE9A', name: 'Handsaw',    desc: 'Next live shot does 2 damage' },
+    beer:   { icon: '\uD83C\uDF7A', name: 'Beer',       desc: 'Eject the current shell' },
+    cuffs:  { icon: '\u26D3\uFE0F', name: 'Handcuffs',  desc: 'Opponent skips their next turn' },
+    shield: { name: 'Shield',     desc: 'Block the next hit you take' },
+    invert: { name: 'Inverter',   desc: 'Flip the current shell. The shell counts will not update' },
+    phone:  { name: 'Phone',      desc: 'Reveal one random shell further down the chamber' },
+    thief:  { name: 'Pickpocket', desc: 'Choose one item to steal from your opponent' },
+    poison: { name: 'Poison',     desc: 'Opponent loses 1 heart at the start of their next 2 turns' }
+  };
+
+  // status effects shown as small icons under a player's hearts
+  const STATUS_INFO = {
+    cuffed: { icon: 'cuffs',  name: 'Handcuffed', desc: 'Skips their next turn' },
+    shield: { icon: 'shield', name: 'Shielded',   desc: 'Blocks the next hit' },
+    poison: { icon: 'poison', name: 'Poisoned',   desc: 'Loses 1 heart at the start of their next turns (the number is how many are left)' },
+    saw:    { icon: 'saw',    name: 'Sawed-off',  desc: 'Next live shot does 2 damage' },
+    known:  { icon: 'glass',  name: 'Shell known', desc: 'The current shell has been revealed' }
+  };
+
+  // ---------- helpers ----------
+  const $ = id => document.getElementById(id);
+  const randint = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
+  const choice = arr => arr[Math.floor(Math.random() * arr.length)];
+
+  // max shells of one type in a round (8 total, minus the guaranteed shell of the other type)
+  const SHELL_SLOTS = 7;
+  const EMPTY_SLOT = '<svg viewBox="0 0 40 80" aria-hidden="true"><rect x="5" y="5" width="30" height="70" rx="7" fill="none" stroke="var(--border)" stroke-width="2" stroke-dasharray="4 4"/></svg>';
+
+  function shellSVG(type) {
+    const color = type === 'live' ? 'var(--live)' : 'var(--blank)';
+    return '<svg viewBox="0 0 40 80" aria-hidden="true">' +
+      '<rect x="6" y="4" width="28" height="52" rx="7" fill="' + color + '"/>' +
+      '<rect x="10" y="9" width="5" height="40" rx="2.5" fill="#fff" opacity=".25"/>' +
+      '<rect x="4" y="50" width="32" height="26" rx="4" fill="#c9a24a"/>' +
+      '<rect x="4" y="50" width="32" height="5" fill="#a8842f"/>' +
+      '<circle cx="20" cy="65" r="4" fill="#7a5f1c"/></svg>';
+  }
+
+  // heart icons, same style as the shell icons: solid = left, dashed outline = lost
+  function heartSVG(filled) {
+    const d = 'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z';
+    return filled
+      ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' + d + '" fill="var(--live)"/></svg>'
+      : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' + d + '" fill="none" stroke="var(--border)" stroke-width="1.5" stroke-dasharray="3 3"/></svg>';
+  }
+
+  // item icons: flat vector style, matching the shell and heart icons
+  function itemSVG(key) {
+    const icons = {
+      glass:
+        '<circle cx="17" cy="17" r="10" fill="var(--blank)" fill-opacity=".25" stroke="var(--blank)" stroke-width="4"/>' +
+        '<line x1="25" y1="25" x2="35" y2="35" stroke="#c9a24a" stroke-width="5" stroke-linecap="round"/>',
+      medkit:
+        '<rect x="14" y="4" width="12" height="8" rx="2" fill="none" stroke="var(--live)" stroke-width="3"/>' +
+        '<rect x="4" y="10" width="32" height="26" rx="5" fill="var(--live)"/>' +
+        '<rect x="17" y="16" width="6" height="14" fill="#fff"/><rect x="13" y="20" width="14" height="6" fill="#fff"/>',
+      saw:
+        '<rect x="3" y="12" width="11" height="16" rx="3" fill="#c9a24a"/>' +
+        '<polygon points="14,13 37,17 37,25 14,27" fill="#aeb4bc"/>' +
+        '<polygon points="37,25 34,30 31,25.5 28,30.5 25,26 22,31 19,26.5 16,31 14,27" fill="#aeb4bc"/>',
+      beer:
+        '<path d="M28 15h4a4 4 0 0 1 4 4v7a4 4 0 0 1-4 4h-4" fill="none" stroke="#e0a82e" stroke-width="3.5"/>' +
+        '<rect x="6" y="11" width="22" height="26" rx="4" fill="#e0a82e"/>' +
+        '<rect x="6" y="6" width="22" height="9" rx="4.5" fill="#fff6dc" stroke="#d9c48a" stroke-width="1"/>' +
+        '<rect x="11" y="19" width="3" height="13" rx="1.5" fill="#fff" opacity=".35"/>',
+      cuffs:
+        '<circle cx="11" cy="25" r="7" fill="none" stroke="#aeb4bc" stroke-width="4"/>' +
+        '<circle cx="29" cy="25" r="7" fill="none" stroke="#aeb4bc" stroke-width="4"/>' +
+        '<rect x="16" y="23" width="8" height="4" fill="#aeb4bc"/>' +
+        '<rect x="8" y="8" width="6" height="8" rx="2" fill="#aeb4bc"/><rect x="26" y="8" width="6" height="8" rx="2" fill="#aeb4bc"/>'
+    };
+    Object.assign(icons, {
+      shield:
+        '<path d="M20 3L35 8V20C35 29 28.5 35 20 38C11.5 35 5 29 5 20V8Z" fill="var(--blank)"/>' +
+        '<path d="M20 8L30 11.5V20C30 26 25.5 30 20 32.5Z" fill="#fff" opacity=".28"/>',
+      invert:
+        '<line x1="6" y1="13" x2="27" y2="13" stroke="var(--live)" stroke-width="5" stroke-linecap="round"/>' +
+        '<polygon points="26,5 37,13 26,21" fill="var(--live)"/>' +
+        '<line x1="34" y1="28" x2="13" y2="28" stroke="var(--blank)" stroke-width="5" stroke-linecap="round"/>' +
+        '<polygon points="14,20 3,28 14,36" fill="var(--blank)"/>',
+      phone:
+        '<rect x="10" y="3" width="20" height="34" rx="5" fill="#4a4f58"/>' +
+        '<rect x="13" y="8" width="14" height="20" rx="2" fill="var(--blank)" fill-opacity=".65"/>' +
+        '<circle cx="20" cy="32.5" r="2" fill="#aeb4bc"/>',
+      thief:
+        '<path d="M15 9h10l-2.5 5c6.5 3 9.5 8 9.5 14 0 6-5 9-12 9s-12-3-12-9c0-6 3-11 9.5-14z" fill="#8c6a3c"/>' +
+        '<rect x="13" y="7" width="14" height="5" rx="2.5" fill="#c9a24a"/>' +
+        '<path d="M16 25h8M20 21v8" stroke="#e7d3a1" stroke-width="3" stroke-linecap="round"/>',
+      poison:
+        '<path d="M16 4h8v10l9 17a5 5 0 0 1-4.4 7H11.4A5 5 0 0 1 7 31l9-17z" fill="none" stroke="#7bc043" stroke-width="3" stroke-linejoin="round"/>' +
+        '<path d="M12.5 25h15l4.5 7.5a3 3 0 0 1-2.6 4.5H10.6A3 3 0 0 1 8 32.5z" fill="#7bc043"/>' +
+        '<circle cx="17" cy="31" r="2" fill="#e8f5d6"/><circle cx="24" cy="29" r="1.5" fill="#e8f5d6"/>'
+    });
+    return '<svg viewBox="0 0 40 40" aria-hidden="true">' + icons[key] + '</svg>';
+  }
+
+  // small symbols used in the tutorial
+  function symbolSVG(name) {
+    const s = {
+      again: '<path d="M31 22a11 11 0 1 1-3.5-8.5" fill="none" stroke="var(--blank)" stroke-width="4" stroke-linecap="round"/>' +
+             '<polygon points="26,5 37,13 25,18" fill="var(--blank)"/>',
+      ok: '<circle cx="20" cy="20" r="14" fill="var(--blank)"/>' +
+          '<path d="M13 20l5 5 9-10" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>'
+    };
+    return '<svg viewBox="0 0 40 40" aria-hidden="true">' + s[name] + '</svg>';
+  }
+
+  // ---------- state ----------
+  let names, hearts, maxHearts, chamber, roundNum, turn, gameOver;
+  let items, sawed, cuffed, peeked;
+  let shielded, poisoned, phoneInfo, shown;
+  let debugMode = false, debugOpen = false;
+
+  // The first message of an action is shown big; any extras appear smaller below it.
+  let events = [];
+  function newAction() { events = []; }
+
+  function log(text, cls = '') {
+    events.push({ text, cls });
+    const big = $('bigMsg');
+    if (events.length === 1) {
+      big.textContent = text;
+      big.className = cls;
+      void big.offsetWidth;          // restart the pop animation
+      big.classList.add('pop');
+    }
+    const sub = $('subMsgs');
+    sub.innerHTML = '';
+    events.slice(1).forEach(e => {
+      const d = document.createElement('div');
+      d.className = e.cls;
+      d.textContent = e.text;
+      sub.appendChild(d);
+    });
+  }
+
+  // ---------- game flow ----------
+  function startGame() {
+    const n1 = $('p1name').value.trim() || 'Player 1';
+    const n2 = $('p2name').value.trim() || 'Player 2';
+    let h = parseInt($('heartsInput').value, 10);
+    if (isNaN(h) || h < 1) h = 1;
+    if (h > 10 && !debugMode) h = 10;   // more than 10 hearts needs debug mode
+    if (h > 100) h = 100;
+
+    names = [n1, n2];
+    hearts = [h, h];
+    maxHearts = h;
+    roundNum = 0;
+    turn = 0;
+    gameOver = false;
+    items = [[], []];
+    sawed = false;
+    cuffed = [false, false];
+    shielded = [false, false];
+    poisoned = [0, 0];
+    phoneInfo = [];
+    shown = { live: 0, blank: 0 };
+    peeked = null;
+    debugOpen = false;
+    inGame = true;
+
+    showScreen('game');
+    $('restartBtn').textContent = 'Restart';
+    $('n1').textContent = n1;
+    $('n2').textContent = n2;
+    newAction();
+
+    startRound();
+  }
+
+  function startRound() {
+    roundNum++;
+    if (roundNum > MAX_ROUNDS) {
+      roundNum = MAX_ROUNDS;
+      log('Sorry, but you have somehow reached the round limit of ' + MAX_ROUNDS + '.', 'sys');
+      log('Well, that is impressive.', 'sys');
+      endGame(null);
+      return;
+    }
+
+    // every round has at least one live and one blank shell
+    chamber = ['live', 'blank'];
+    const size = randint(MIN_SHELLS, MAX_SHELLS);
+    for (let i = 2; i < size; i++) chamber.push(choice(SHELL_STATES));
+    // shuffle so the guaranteed shells aren't always first
+    for (let i = chamber.length - 1; i > 0; i--) {
+      const j = randint(0, i);
+      [chamber[i], chamber[j]] = [chamber[j], chamber[i]];
+    }
+
+    log('Round ' + roundNum, 'sys');
+    log(chamber.filter(s => s === 'live').length + ' live, ' +
+        chamber.filter(s => s === 'blank').length + ' blank', 'sys');
+    // the counts on screen only change when a shell is fired or ejected (the inverter can make them wrong)
+    shown = { live: chamber.filter(s => s === 'live').length, blank: chamber.filter(s => s === 'blank').length };
+    phoneInfo = [];
+    sawed = false;
+    peeked = null;
+    if (roundNum > 1) dealItems();   // items are handed out after every round
+    render();
+  }
+
+  // one big shell icon per shell left in the chamber (order stays hidden)
+  function renderShells() {
+    const row = $('shellRow');
+    row.innerHTML = '';
+    ['live', 'blank'].forEach(type => {
+      const n = shown[type];
+      const g = document.createElement('div');
+      g.className = 'shell-group';
+      g.innerHTML = '<div class="icons">' + shellSVG(type).repeat(n) +
+        EMPTY_SLOT.repeat(Math.max(0, SHELL_SLOTS - n)) + '</div>';
+      g.setAttribute('aria-label', n + ' ' + type + ' shells');
+      row.appendChild(g);
+    });
+  }
+
+  // ---------- debug drawer (only when the game was started with 100 hearts) ----------
+  const clampInt = (v, lo, hi, fallback) => {
+    v = parseInt(v, 10);
+    return isNaN(v) ? fallback : Math.max(lo, Math.min(hi, v));
+  };
+
+  const DEBUG_TABS = [
+    { id: 'lives', label: 'Lives' },
+    { id: 'items', label: 'Items' },
+    { id: 'status', label: 'Status' },
+    { id: 'inventory', label: 'Inventory' },
+    { id: 'game', label: 'Game' }
+  ];
+  let debugTab = 'lives';
+  let dbgSync = [];   // functions that refresh the drawer's controls
+
+  // the game variables the debug menu can change, grouped by tab
+  const DEBUG_RULES = [
+    { tab: 'game', fair: true, label: 'Self-shot blank = extra turn', type: 'bool',
+      get: () => SELF_BLANK_EXTRA_TURN, set: v => { SELF_BLANK_EXTRA_TURN = v; } },
+    { tab: 'lives', label: 'Max hearts', type: 'num', min: 1, max: 100,
+      get: () => maxHearts, set: v => { maxHearts = v; hearts = hearts.map(h => Math.min(h, v)); } },
+    { tab: 'inventory', fair: true, label: 'Items per round', type: 'num', min: 0, max: 12,
+      get: () => ITEMS_PER_ROUND, set: v => { ITEMS_PER_ROUND = v; } },
+    { tab: 'inventory', fair: true, label: 'Max items held', type: 'num', min: 1, max: 12,
+      get: () => MAX_ITEMS, set: v => { MAX_ITEMS = v; } },
+    { tab: 'game', fair: true, label: 'Fewest shells per round', type: 'num', min: 2, max: 8,
+      get: () => MIN_SHELLS, set: v => { MIN_SHELLS = v; if (MAX_SHELLS < v) MAX_SHELLS = v; } },
+    { tab: 'game', fair: true, label: 'Most shells per round', type: 'num', min: 2, max: 8,
+      get: () => MAX_SHELLS, set: v => { MAX_SHELLS = v; if (MIN_SHELLS > v) MIN_SHELLS = v; } },
+    { tab: 'game', fair: true, label: 'Round limit', type: 'num', min: 1, max: 999,
+      get: () => MAX_ROUNDS, set: v => { MAX_ROUNDS = v; } }
+  ];
+
+  function dbgEl(tag, cls, parent) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+
+  function dbgBtn(text, fn) {
+    const b = document.createElement('button');
+    b.textContent = text;
+    b.addEventListener('click', fn);
+    return b;
+  }
+
+  function dbgLabel(parent, text) {
+    dbgEl('div', 'dbg-label', parent).textContent = text;
+  }
+
+  // set one player's hearts (raises the max if needed)
+  function setHeartsDebug(p, v) {
+    v = Math.max(1, Math.min(100, v));
+    if (v > maxHearts) maxHearts = v;
+    hearts[p] = v;
+    render();
+  }
+
+  // one box per player; build(box, p) fills it
+  function dbgPlayerBoxes(parent, build) {
+    const grid = dbgEl('div', 'dbg-players', parent);
+    for (let p = 0; p < 2; p++) {
+      const box = dbgEl('div', 'dbg-player', grid);
+      const name = dbgEl('div', 'dbg-pname', box);
+      dbgSync.push(() => {
+        name.textContent = names[p];
+        box.classList.toggle('turn', !gameOver && turn === p);
+      });
+      build(box, p);
+    }
+  }
+
+  // the rules that belong on one tab
+  function dbgRules(parent, which, sync) {
+    const test = typeof which === 'function' ? which : r => r.tab === which;
+    const syncList = sync || dbgSync;
+    DEBUG_RULES.filter(test).forEach(r => {
+      const row = dbgEl('div', 'dbg-rule', parent);
+      dbgEl('span', '', row).textContent = r.label;
+      if (r.type === 'bool') {
+        const b = dbgBtn('', () => { r.set(!r.get()); afterRuleChange(); });
+        row.appendChild(b);
+        syncList.push(() => { b.textContent = r.get() ? 'ON' : 'OFF'; });
+      } else {
+        const input = dbgEl('input', 'dbg-num', row);
+        input.type = 'number';
+        input.min = r.min;
+        input.max = r.max;
+        input.addEventListener('change', () => { r.set(clampInt(input.value, r.min, r.max, r.get())); afterRuleChange(); });
+        syncList.push(() => { if (document.activeElement !== input) input.value = r.get(); });
+      }
+    });
+  }
+
+  // builds the tabs once; renderDebug keeps their values in sync
+  function buildDebug() {
+    dbgSync = [];
+    const tabs = $('dbgTabs');
+    const body = $('dbgBody');
+    tabs.innerHTML = '';
+    body.innerHTML = '';
+    const panes = {};
+
+    DEBUG_TABS.forEach(t => {
+      const tb = dbgBtn(t.label, () => { debugTab = t.id; renderDebug(); });
+      tb.className = 'dbg-tab';
+      tabs.appendChild(tb);
+      const pane = dbgEl('div', 'dbg-pane', body);
+      panes[t.id] = pane;
+      dbgSync.push(() => {
+        tb.classList.toggle('on', debugTab === t.id);
+        pane.classList.toggle('hidden', debugTab !== t.id);
+      });
+    });
+
+    // ----- lives -----
+    dbgLabel(panes.lives, 'Set lives');
+    dbgPlayerBoxes(panes.lives, (box, p) => {
+      const row = dbgEl('div', 'dbg-row', box);
+      row.appendChild(dbgBtn('\u2212', () => setHeartsDebug(p, hearts[p] - 1)));
+      const input = dbgEl('input', 'dbg-num', row);
+      input.type = 'number';
+      input.min = 1;
+      input.max = 100;
+      input.addEventListener('change', () => setHeartsDebug(p, clampInt(input.value, 1, 100, hearts[p])));
+      row.appendChild(dbgBtn('+', () => setHeartsDebug(p, hearts[p] + 1)));
+      row.appendChild(dbgBtn('Heal', () => setHeartsDebug(p, maxHearts)));
+      dbgSync.push(() => { if (document.activeElement !== input) input.value = hearts[p]; });
+    });
+    dbgLabel(panes.lives, 'Lives settings');
+    dbgRules(panes.lives, 'lives');
+
+    // ----- items -----
+    dbgLabel(panes.items, 'Give items');
+    dbgPlayerBoxes(panes.items, (box, p) => {
+      const row = dbgEl('div', 'dbg-row', box);
+      Object.keys(ITEMS).forEach(key => {
+        const b = dbgBtn('', () => {
+          if (!gameOver && items[p].length < MAX_ITEMS) { items[p].push(key); render(); }
+        });
+        b.className = 'dbg-chip';
+        b.innerHTML = itemSVG(key) + '<span></span>';
+        b.querySelector('span').textContent = ITEMS[key].name;
+        b.title = ITEMS[key].desc;
+        row.appendChild(b);
+      });
+      const clear = dbgBtn('Clear their items', () => { items[p] = []; render(); });
+      box.appendChild(clear);
+    });
+
+    // ----- status -----
+    dbgLabel(panes.status, 'Status effects');
+    dbgPlayerBoxes(panes.status, (box, p) => {
+      const row = dbgEl('div', 'dbg-row', box);
+      const toggle = (text, fn) => {
+        const b = dbgBtn('', fn);
+        row.appendChild(b);
+        dbgSync.push(() => { b.textContent = text(); });
+      };
+      toggle(() => 'Cuffed: ' + (cuffed[p] ? 'yes' : 'no'), () => { cuffed[p] = !cuffed[p]; render(); });
+      toggle(() => 'Shield: ' + (shielded[p] ? 'yes' : 'no'), () => { shielded[p] = !shielded[p]; render(); });
+      toggle(() => 'Poison: ' + poisoned[p], () => { poisoned[p] = poisoned[p] > 0 ? 0 : 2; render(); });
+      row.appendChild(dbgBtn('Their turn', () => { if (!gameOver) { turn = p; render(); } }));
+    });
+    const sawRow = dbgEl('div', 'dbg-rule dbg-gap', panes.status);
+    dbgEl('span', '', sawRow).textContent = 'Sawed-off (current shooter)';
+    const sawBtn = dbgBtn('', () => { sawed = !sawed; render(); });
+    sawRow.appendChild(sawBtn);
+    dbgSync.push(() => { sawBtn.textContent = sawed ? 'ON' : 'OFF'; });
+
+    // ----- inventory settings -----
+    dbgLabel(panes.inventory, 'Inventory settings');
+    dbgRules(panes.inventory, 'inventory');
+    const invRow = dbgEl('div', 'dbg-row dbg-gap', panes.inventory);
+    invRow.appendChild(dbgBtn('Deal items now', () => { if (!gameOver) { newAction(); dealItems(); render(); } }));
+    invRow.appendChild(dbgBtn('Clear all items', () => { items = [[], []]; render(); }));
+
+    // ----- game -----
+    dbgLabel(panes.game, 'Chamber (1 = next shell)');
+    const ch = dbgEl('div', 'dbg-chamber', panes.game);
+    dbgSync.push(() => {
+      ch.innerHTML = '';
+      chamber.forEach((sh, i) => {
+        const d = dbgEl('div', 'dbg-dot dbg-' + sh, ch);
+        d.textContent = i + 1;
+        d.title = sh;
+      });
+    });
+    const chRow = dbgEl('div', 'dbg-row', panes.game);
+    chRow.appendChild(dbgBtn('Next: live', () => debugInsert('live')));
+    chRow.appendChild(dbgBtn('Next: blank', () => debugInsert('blank')));
+    chRow.appendChild(dbgBtn('Reload round', () => { if (!gameOver) { newAction(); startRound(); } }));
+    dbgLabel(panes.game, 'Game rules');
+    dbgRules(panes.game, 'game');
+  }
+
+  function renderDebug() {
+    $('dbgToggle').classList.toggle('hidden', !debugMode);
+    $('debugPanel').classList.toggle('hidden', !debugMode);
+    $('debugPanel').classList.toggle('open', debugMode && debugOpen);
+    if (!debugMode) return;
+    if (!$('dbgBody').children.length) buildDebug();
+    dbgSync.forEach(f => f());
+  }
+
+  // ---------- settings: drawer (in game), page (main menu), saved in this browser ----------
+  let settingsOpen = false;
+  let themeMode = 'auto';
+  let inGame = false;
+  let setSync = [];    // drawer controls
+  let pageSync = [];   // settings page controls
+  const SAVE_KEY = 'vexshot-roulette-settings';
+
+  function saveSettings() {
+    try {
+      const data = { theme: themeMode, debug: debugMode, rules: {} };
+      DEBUG_RULES.filter(r => r.fair).forEach(r => { data.rules[r.label] = r.get(); });
+      localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+    } catch (e) { /* storage can be unavailable: settings just won't be remembered */ }
+  }
+
+  function loadSettings() {
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      applyTheme(data.theme);
+      debugMode = !!data.debug;
+      DEBUG_RULES.filter(r => r.fair).forEach(r => {
+        if (!data.rules || !(r.label in data.rules)) return;
+        const v = data.rules[r.label];
+        if (r.type === 'bool') r.set(!!v);
+        else r.set(clampInt(v, r.min, r.max, r.get()));
+      });
+    } catch (e) { /* ignore a missing or broken save */ }
+  }
+
+  function applyTheme(mode) {
+    if (mode !== 'light' && mode !== 'dark') mode = 'auto';
+    themeMode = mode;
+    const root = document.documentElement;
+    if (mode === 'auto') root.removeAttribute('data-theme');
+    else root.setAttribute('data-theme', mode);
+  }
+
+  function syncSettings() {
+    setSync.forEach(f => f());
+    pageSync.forEach(f => f());
+  }
+
+  // called after any rule is changed from a settings screen or the debug menu
+  function afterRuleChange() {
+    if (inGame) render();
+    saveSettings();
+    syncSettings();
+  }
+
+  function buildThemeButtons(container, list) {
+    container.innerHTML = '';
+    [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']].forEach(pair => {
+      const b = dbgBtn(pair[1], () => { applyTheme(pair[0]); saveSettings(); syncSettings(); });
+      b.className = 'theme-btn';
+      container.appendChild(b);
+      list.push(() => b.classList.toggle('on', themeMode === pair[0]));
+    });
+  }
+
+  // in-game drawer: appearance + rules
+  function buildSettings() {
+    setSync = [];
+    buildThemeButtons($('setTheme'), setSync);
+    const rb = $('setRules');
+    rb.innerHTML = '';
+    dbgRules(rb, r => r.fair, setSync);
+  }
+
+  // main menu page: appearance + rules + debug mode switch
+  function buildSettingsPage() {
+    pageSync = [];
+    buildThemeButtons($('pgTheme'), pageSync);
+    const rb = $('pgRules');
+    rb.innerHTML = '';
+    dbgRules(rb, r => r.fair, pageSync);
+    pageSync.push(() => { $('pgDebug').textContent = debugMode ? 'ON' : 'OFF'; });
+  }
+
+  function renderSettings() {
+    $('settingsPanel').classList.toggle('open', settingsOpen);
+    syncSettings();
+  }
+
+  function setDebugMode(on) {
+    debugMode = on;
+    if (!on) debugOpen = false;
+    saveSettings();
+    syncSettings();
+    if (inGame) render();
+  }
+
+  function showScreen(name) {
+    ['menu', 'setup', 'settingsPage', 'game'].forEach(id => $(id).classList.toggle('hidden', id !== name));
+  }
+
+  // which status effect icons a player currently has
+  function statusList(p) {
+    const out = [];
+    if (cuffed[p]) out.push({ key: 'cuffed' });
+    if (shielded[p]) out.push({ key: 'shield' });
+    if (poisoned[p] > 0) out.push({ key: 'poison', count: poisoned[p] });
+    if (!gameOver && turn === p && sawed) out.push({ key: 'saw' });
+    if (!gameOver && turn === p && peeked) out.push({ key: 'known' });
+    return out;
+  }
+
+  function renderStatus(p) {
+    const box = $('st' + (p + 1));
+    box.innerHTML = '';
+    statusList(p).forEach(st => {
+      const info = STATUS_INFO[st.key];
+      const el = document.createElement('span');
+      el.className = 'st';
+      el.title = info.name + ': ' + info.desc;
+      el.innerHTML = itemSVG(info.icon);
+      if (st.count) {
+        const b = document.createElement('i');
+        b.textContent = st.count;
+        el.appendChild(b);
+      }
+      box.appendChild(el);
+    });
+  }
+
+  function render() {
+    const rl = $('roundLabel');
+    rl.innerHTML = 'Round <b></b>';
+    rl.querySelector('b').textContent = roundNum;
+
+    for (let i = 0; i < 2; i++) {
+      const lost = Math.max(0, maxHearts - hearts[i]);
+      const box = $('h' + (i + 1));
+      if (maxHearts > 10) {
+        // too many to draw as a row, so show a number instead
+        box.innerHTML = '<span class="heart-num">' + heartSVG(true) + '<span></span></span>';
+        box.querySelector('.heart-num span').textContent = hearts[i];
+      } else {
+        box.innerHTML = heartSVG(true).repeat(Math.max(0, hearts[i])) + heartSVG(false).repeat(lost);
+        box.style.setProperty('--n', maxHearts);
+      }
+      $('card' + (i + 1)).classList.toggle('active', !gameOver && turn === i);
+      renderStatus(i);
+    }
+
+    renderShells();
+    renderDebug();
+
+    $('turnLabel').textContent = gameOver ? 'Game over' : names[turn] + "'s turn";
+
+    for (let p = 0; p < 2; p++) {
+      const canShoot = !gameOver && turn === p;
+      $('self' + (p + 1)).disabled = !canShoot;
+      $('enemy' + (p + 1)).disabled = !canShoot;
+    }
+
+    // inventories (only the active player's cards are clickable)
+    // the grid follows the max inventory size: up to 4 rows, as many columns as needed
+    const slotCount = Math.max(MAX_ITEMS, items[0].length, items[1].length);
+    const gridCols = Math.ceil(slotCount / 4);
+    const gridRows = Math.ceil(slotCount / gridCols);
+    for (let p = 0; p < 2; p++) {
+      const inv = $('inv' + (p + 1));
+      inv.innerHTML = '';
+      inv.style.gridTemplateColumns = 'repeat(' + gridCols + ', minmax(0, 1fr))';
+      inv.style.gridTemplateRows = 'repeat(' + gridRows + ', minmax(0, 1fr))';
+      // filled squares are items, the rest are empty
+      for (let idx = 0; idx < slotCount; idx++) {
+        const key = items[p][idx];
+        if (!key) {
+          const e = document.createElement('div');
+          e.className = 'slot empty';
+          inv.appendChild(e);
+          continue;
+        }
+        const b = document.createElement('button');
+        b.className = 'slot';
+        b.title = ITEMS[key].name + ': ' + ITEMS[key].desc;
+        b.setAttribute('aria-label', ITEMS[key].name + ': ' + ITEMS[key].desc);
+        b.innerHTML = itemSVG(key);
+        b.disabled = gameOver || p !== turn;
+        b.addEventListener('click', () => useItem(idx));
+        inv.appendChild(b);
+      }
+    }
+
+    let note = '';
+    if (!gameOver && peeked) note += 'Current shell: ' + peeked.toUpperCase() + '. ';
+    if (!gameOver) phoneInfo.filter(x => x.pos > 0).forEach(x => { note += 'Shell ' + (x.pos + 1) + ': ' + x.type.toUpperCase() + '. '; });
+    if (!gameOver && sawed) note += 'Handsaw ready: next live shot does 2 damage.';
+    $('peekLabel').textContent = note;
+  }
+
+  function shoot(target) {
+    if (gameOver || chamber.length === 0) return;
+    newAction();
+
+    const shooter = turn;
+    const other = 1 - turn;
+    const victim = target === 'self' ? shooter : other;
+    const shell = advanceChamber();   // fire the first shell and remove it
+    shown[shell] = Math.max(0, shown[shell] - 1);
+    const who = target === 'self' ? 'themselves' : names[other];
+
+    const damage = (shell === 'live' && sawed) ? 2 : 1;
+    if (shell === 'live') {
+      log(names[shooter] + ' shot ' + who + ' and it was LIVE' +
+          (damage > 1 ? ' (sawed-off, 2 damage)' : '') + '.', 'hit');
+      if (shielded[victim]) {
+        shielded[victim] = false;
+        log(names[victim] + "'s shield blocked the hit.", 'sys');
+      } else {
+        hearts[victim] = Math.max(0, hearts[victim] - damage);
+      }
+    } else {
+      log(names[shooter] + ' shot ' + who + ' and it was a blank.', 'miss');
+    }
+
+    sawed = false;
+
+    // check for game over
+    if (hearts[0] <= 0 || hearts[1] <= 0) {
+      const winner = hearts[0] <= 0 ? 1 : 0;
+      render();
+      endGame(winner);
+      return;
+    }
+
+    // who goes next?
+    const keepTurn = SELF_BLANK_EXTRA_TURN && target === 'self' && shell === 'blank';
+    if (keepTurn) {
+      if (chamber.length > 0) log(names[shooter] + ' goes again.', 'sys');
+    } else if (cuffed[other]) {
+      cuffed[other] = false;
+      log(names[other] + ' is handcuffed and skips their turn.', 'sys');
+    } else {
+      turn = other;
+      if (poisonTick(turn)) return;   // poison can end the game
+    }
+
+    // round over?
+    if (chamber.length === 0) {
+      log('The chamber is empty. Reloading...', 'sys');
+      startRound();
+      return;
+    }
+    render();
+  }
+
+  // remove the front shell and update what is known about the rest of the chamber
+  function advanceChamber() {
+    const shell = chamber.shift();
+    phoneInfo = phoneInfo.map(x => ({ pos: x.pos - 1, type: x.type })).filter(x => x.pos >= 0);
+    const front = phoneInfo.find(x => x.pos === 0);
+    peeked = front ? front.type : null;
+    return shell;
+  }
+
+  // poison hurts at the start of the poisoned player's turn (a shield does not stop it)
+  function poisonTick(p) {
+    if (poisoned[p] <= 0) return false;
+    poisoned[p]--;
+    hearts[p] = Math.max(0, hearts[p] - 1);
+    log(names[p] + ' takes 1 poison damage.', 'hit');
+    if (hearts[p] <= 0) {
+      render();
+      endGame(1 - p);
+      return true;
+    }
+    return false;
+  }
+
+  // pickpocket: choose which of the opponent's items to take
+  let pickIdx = null;
+  function openPickpocket(idx) {
+    pickIdx = idx;
+    const other = 1 - turn;
+    $('pickTitle').textContent = 'Steal from ' + names[other];
+    const grid = $('pickGrid');
+    grid.innerHTML = '';
+    items[other].forEach((key, si) => {
+      const b = document.createElement('button');
+      b.className = 'pick-item';
+      b.innerHTML = itemSVG(key) + '<span></span>';
+      b.querySelector('span').textContent = ITEMS[key].name;
+      b.title = ITEMS[key].name + ': ' + ITEMS[key].desc;
+      b.addEventListener('click', () => stealItem(si));
+      grid.appendChild(b);
+    });
+    $('pickModal').classList.remove('hidden');
+  }
+
+  function closePick() {
+    pickIdx = null;
+    $('pickModal').classList.add('hidden');
+  }
+
+  function stealItem(si) {
+    const other = 1 - turn;
+    let ti = pickIdx !== null && items[turn][pickIdx] === 'thief' ? pickIdx : items[turn].indexOf('thief');
+    closePick();
+    if (gameOver || ti < 0 || si >= items[other].length) { render(); return; }
+    newAction();
+    items[turn].splice(ti, 1);                       // the pickpocket is used up
+    const stolen = items[other].splice(si, 1)[0];
+    items[turn].push(stolen);
+    log(names[turn] + ' stole ' + ITEMS[stolen].name + ' from ' + names[other] + '.', 'sys');
+    render();
+  }
+
+  function dealItems() {
+    const keys = Object.keys(ITEMS);
+    for (let p = 0; p < 2; p++) {
+      const got = [];
+      for (let i = 0; i < ITEMS_PER_ROUND; i++) {
+        if (items[p].length >= MAX_ITEMS) break;
+        const k = choice(keys);
+        items[p].push(k);
+        got.push(ITEMS[k].name);
+      }
+      log(names[p] + ' got: ' + (got.length ? got.join(', ') : 'nothing (inventory full)'), 'sys');
+    }
+  }
+
+  function useItem(idx) {
+    if (gameOver) return;
+    newAction();
+    const key = items[turn][idx];
+    const other = 1 - turn;
+    const me = names[turn];
+
+    // don't waste an item that would do nothing
+    if (key === 'saw' && sawed) { log('The barrel is already sawed off.', 'sys'); return; }
+    if (key === 'cuffs' && cuffed[other]) { log(names[other] + ' is already handcuffed.', 'sys'); return; }
+    if (key === 'medkit' && hearts[turn] >= maxHearts && poisoned[turn] <= 0) { log('You are already at full hearts.', 'sys'); return; }
+    if (key === 'shield' && shielded[turn]) { log('You already have a shield up.', 'sys'); return; }
+    if (key === 'invert' && chamber.length === 0) return;
+    const unknownPos = chamber.map((_, i) => i).filter(i => i > 0 && !phoneInfo.some(x => x.pos === i));
+    if (key === 'phone' && unknownPos.length === 0) { log('There is no unknown shell left to call about.', 'sys'); return; }
+    if (key === 'thief' && items[other].length === 0) { log(names[other] + ' has nothing to steal.', 'sys'); return; }
+    if (key === 'poison' && poisoned[other] >= 2) { log(names[other] + ' is already poisoned.', 'sys'); return; }
+
+    if (key === 'thief') { openPickpocket(idx); return; }   // you pick the item, then it is used up
+
+    items[turn].splice(idx, 1);
+
+    if (key === 'glass') {
+      peeked = chamber[0];
+      log(me + ' used the magnifier.', 'sys');
+    } else if (key === 'medkit') {
+      const healed = hearts[turn] < maxHearts;
+      if (healed) hearts[turn]++;
+      const cured = poisoned[turn] > 0;
+      poisoned[turn] = 0;
+      log(me + ' used a medkit' + (healed ? ' and restored 1 heart' : '') + (cured ? (healed ? ' and cured the poison' : ' and cured the poison') : '') + '.', 'sys');
+    } else if (key === 'saw') {
+      sawed = true;
+      log(me + ' sawed off the barrel.', 'sys');
+    } else if (key === 'cuffs') {
+      cuffed[other] = true;
+      log(me + ' handcuffed ' + names[other] + '.', 'sys');
+    } else if (key === 'shield') {
+      shielded[turn] = true;
+      log(me + ' raised a shield.', 'sys');
+    } else if (key === 'invert') {
+      chamber[0] = chamber[0] === 'live' ? 'blank' : 'live';
+      if (peeked) peeked = chamber[0];
+      log(me + ' flipped the current shell. The counts will not update.', 'sys');
+    } else if (key === 'phone') {
+      const pos = choice(unknownPos);
+      phoneInfo.push({ pos: pos, type: chamber[pos] });
+      log(me + ' made a phone call.', 'sys');
+    } else if (key === 'poison') {
+      poisoned[other] = 2;
+      log(me + ' poisoned ' + names[other] + '.', 'sys');
+    } else if (key === 'beer') {
+      const ejected = advanceChamber();
+      shown[ejected] = Math.max(0, shown[ejected] - 1);
+      log(me + ' drank a beer and ejected a ' + ejected.toUpperCase() + ' shell.', ejected === 'live' ? 'hit' : 'miss');
+      if (chamber.length === 0) {
+        log('The chamber is empty. Reloading...', 'sys');
+        startRound();
+        return;
+      }
+    }
+    render();
+  }
+
+  function endGame(winner) {
+    gameOver = true;
+    log(winner !== null ? 'GAME OVER! ' + names[winner] + ' wins!' : 'GAME OVER', 'hit');
+    render();
+    $('restartBtn').textContent = 'Play again';
+  }
+
+  // ---------- tutorial ----------
+  const TUTORIAL = [
+    { title: 'The goal',
+      visual: () => '<span class="hv">' + heartSVG(true).repeat(3) + heartSVG(false) + '</span>',
+      text: 'Both players start with the same number of hearts. Lose them all and you are out. The last player with hearts wins.' },
+    { title: 'The shotgun',
+      visual: () => '<span class="sv">' + shellSVG('live').repeat(2) + shellSVG('blank').repeat(3) + '</span>',
+      text: 'At the start of every round the shotgun is loaded with 2 to 8 shells in a random order. There is always at least one live shell (red) and one blank (blue). The two rows at the top of the screen show how many of each are left, but never the order.' },
+    { title: 'Taking your turn',
+      visual: () => '<span class="fake">Shoot self</span><span class="fake p">Shoot enemy</span>',
+      text: 'On your turn, press Shoot enemy or Shoot self under your name. The next shell in the chamber is fired. Your buttons are greyed out while it is your opponent\'s turn.' },
+    { title: 'Live or blank?',
+      visual: () => '<span class="sv">' + shellSVG('live') + '</span><span class="arrow">\u2192</span><span class="hv">' + heartSVG(true) + heartSVG(true) + heartSVG(false) + '</span>' +
+                    '<span class="sv" style="margin-left:14px">' + shellSVG('blank') + '</span><span class="arrow">\u2192</span><span class="iv">' + symbolSVG('ok') + '</span>',
+      text: 'A live shell takes 1 heart from whoever it hits. A blank does nothing. Shooting your opponent always ends your turn.' },
+    { title: 'The gamble',
+      visual: () => '<span class="sv">' + shellSVG('blank') + '</span><span class="arrow">\u2192</span><span class="iv">' + symbolSVG('again') + '</span>',
+      text: 'Shoot yourself and hit a blank? You go again. Hit a live shell and you lose a heart, and the turn passes to your opponent. Count the shells left before you take the risk.' },
+    { title: 'Items',
+      visual: () => '<span class="iv">' + Object.keys(ITEMS).map(k => itemSVG(k)).join('') + '</span>',
+      text: 'After every round, each player gets 2 random items (your inventory size is limited, 12 by default). They fill the inventory grid under your name. On your turn, tap an item before you shoot. You can use as many as you like, and using an item never ends your turn.' },
+    { title: 'What the items do',
+      visual: null,
+      text: '',
+      list: () => Object.keys(ITEMS).map(k => ({ svg: itemSVG(k), name: ITEMS[k].name, desc: ITEMS[k].desc })) },
+    { title: 'Status effects',
+      visual: () => '<span class="iv">' + Object.keys(STATUS_INFO).map(k => itemSVG(STATUS_INFO[k].icon)).join('') + '</span>',
+      text: 'Small icons under a player\'s hearts show the effects on them. Hover over an icon to read what it does.',
+      list: () => Object.keys(STATUS_INFO).map(k => ({ svg: itemSVG(STATUS_INFO[k].icon), name: STATUS_INFO[k].name, desc: STATUS_INFO[k].desc })) },
+    { title: 'New rounds',
+      visual: () => '<span class="iv">' + symbolSVG('again') + '</span>',
+      text: 'When the last shell is fired, the shotgun reloads, a new round begins and everyone gets 2 new items. Keep playing until someone runs out of hearts. Tip: the magnifier shows the shell on screen for both players, so look away!' }
+  ];
+  let tutStep = 0;
+
+  function renderTutorial() {
+    const s = TUTORIAL[tutStep];
+    $('tutStepLabel').textContent = 'Step ' + (tutStep + 1) + ' of ' + TUTORIAL.length;
+    $('tutTitle').textContent = s.title;
+    const vis = $('tutVisual');
+    vis.classList.toggle('hidden', !s.visual);
+    vis.innerHTML = s.visual ? s.visual() : '';
+    $('tutText').textContent = s.text;
+    $('tutText').classList.toggle('hidden', !s.text);
+
+    const list = $('tutList');
+    list.innerHTML = '';
+    if (s.list) {
+      s.list().forEach(it => {
+        const row = document.createElement('div');
+        row.className = 'tut-item';
+        row.innerHTML = '<span class="ic"></span><div><b></b><span class="d"></span></div>';
+        row.querySelector('.ic').innerHTML = it.svg;
+        row.querySelector('b').textContent = it.name;
+        row.querySelector('.d').textContent = it.desc;
+        list.appendChild(row);
+      });
+    }
+
+    const dots = $('tutDots');
+    dots.innerHTML = '';
+    TUTORIAL.forEach((_, i) => {
+      const d = document.createElement('i');
+      if (i === tutStep) d.className = 'on';
+      dots.appendChild(d);
+    });
+
+    $('tutBack').disabled = tutStep === 0;
+    $('tutNext').textContent = tutStep === TUTORIAL.length - 1 ? "Let's play" : 'Next';
+  }
+
+  function openTutorial() {
+    tutStep = 0;
+    renderTutorial();
+    $('tutorial').classList.remove('hidden');
+  }
+  function closeTutorial() { $('tutorial').classList.add('hidden'); }
+
+  // ---------- buttons ----------
+  $('startBtn').addEventListener('click', startGame);
+  $('helpBtn').addEventListener('click', openTutorial);
+  $('tutClose').addEventListener('click', closeTutorial);
+  $('tutBack').addEventListener('click', () => { if (tutStep > 0) { tutStep--; renderTutorial(); } });
+  $('tutNext').addEventListener('click', () => {
+    if (tutStep < TUTORIAL.length - 1) { tutStep++; renderTutorial(); }
+    else closeTutorial();
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeTutorial(); closePick(); } });
+  $('pickCancel').addEventListener('click', closePick);
+
+  [0, 1].forEach(p => {
+    $('self' + (p + 1)).addEventListener('click', () => { if (turn === p) shoot('self'); });
+    $('enemy' + (p + 1)).addEventListener('click', () => { if (turn === p) shoot('enemy'); });
+  });
+
+  // Restart: back to the name page. Mid-game it needs a second tap to confirm.
+  let restartTimer = null;
+  function disarmRestart() {
+    clearTimeout(restartTimer);
+    restartTimer = null;
+    $('restartBtn').textContent = gameOver ? 'Play again' : 'Restart';
+  }
+  function goToSetup() {
+    clearTimeout(restartTimer);
+    restartTimer = null;
+    settingsOpen = false;
+    renderSettings();
+    debugOpen = false;
+    $('debugPanel').classList.remove('open');
+    $('debugPanel').classList.add('hidden');
+    closePick();
+    inGame = false;
+    showScreen('setup');
+  }
+  $('restartBtn').addEventListener('click', () => {
+    if (!gameOver && restartTimer === null) {
+      $('restartBtn').textContent = 'Tap again to confirm';
+      restartTimer = setTimeout(disarmRestart, 3000);
+      return;
+    }
+    goToSetup();
+  });
+
+  // Settings: side drawer with the normal (non-cheat) options
+  $('settingsBtn').addEventListener('click', () => { settingsOpen = !settingsOpen; renderSettings(); });
+  $('setClose').addEventListener('click', () => { settingsOpen = false; renderSettings(); });
+  $('setHelp').addEventListener('click', () => { settingsOpen = false; renderSettings(); openTutorial(); });
+
+  // debug controls
+  $('dbgToggle').addEventListener('click', () => { debugOpen = !debugOpen; renderDebug(); });
+  $('dbgClose').addEventListener('click', () => { debugOpen = false; renderDebug(); });
+  function debugInsert(type) {
+    if (gameOver) return;
+    chamber.unshift(type);
+    shown[type]++;
+    phoneInfo.forEach(x => { x.pos++; });
+    peeked = null;
+    render();
+  }
+
+  // ---------- main menu and pages ----------
+  $('menuPlay').addEventListener('click', () => showScreen('setup'));
+  $('menuHow').addEventListener('click', openTutorial);
+  $('menuSettings').addEventListener('click', () => { syncSettings(); showScreen('settingsPage'); });
+  $('setupBack').addEventListener('click', () => showScreen('menu'));
+  $('pageBack').addEventListener('click', () => showScreen('menu'));
+  $('pgDebug').addEventListener('click', () => setDebugMode(!debugMode));
+
+  loadSettings();
+  buildSettings();
+  buildSettingsPage();
+  syncSettings();
+</script>
+<script>
+  // Offline support: the service worker needs https (or localhost).
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js').catch(function () { /* the game still works online */ });
+    });
+  }
+</script>
+</body>
+</html>
