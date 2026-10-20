@@ -5,3 +5,5 @@ game size: 297 kb
 
 support me at: 
 https://heylink.me/vexity/
+
+this my first game on github so it might have some problems 
